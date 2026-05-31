@@ -27,3 +27,32 @@ Custom `/effort` command that allows me to switch the effort/thinking level of t
 having to go thorugh the `/settings` menu.
 
 [Source](extensions/effort.ts)
+
+### Local voice transcription
+
+Local Whisper voice input for Pi. Press `ctrl+space` (or run `/voice`) to start recording,
+press it again to stop and transcribe, or press `escape` to cancel. The transcript is inserted
+into the editor when supported, otherwise it is sent as a user message.
+
+Requires `ffmpeg` plus a local Whisper engine:
+
+- default: `mlx-whisper` (`pipx install mlx-whisper`) using `mlx-community/whisper-small-mlx`
+- fallback/optional: `whisper.cpp` via `whisper-cli` or `whisper-cpp` with `PI_VOICE_WHISPER_CPP_MODEL` set
+
+Useful commands:
+
+- `/voice` toggles recording
+- `/voice-status` shows engine/model/device status
+- `/voice-warmup` warms the local model manually
+
+Configuration environment variables:
+
+- `PI_VOICE_SHORTCUT` (default `ctrl+space`)
+- `PI_VOICE_MODEL` (default `mlx-community/whisper-small-mlx`)
+- `PI_VOICE_LANGUAGE` (default `en`)
+- `PI_VOICE_AUDIO_DEVICE` (default `:0` for macOS `avfoundation`)
+- `PI_VOICE_ENGINE=whisper.cpp` to force whisper.cpp
+- `PI_VOICE_WHISPER_CPP_MODEL=/path/to/model.bin` for whisper.cpp
+- `PI_VOICE_WARMUP=0` to disable session-start warmup
+
+[Source](extensions/local-voice.ts)
