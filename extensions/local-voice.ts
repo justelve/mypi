@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { isKeyRelease, matchesKey } from "@earendil-works/pi-tui";
 
 const shortcut = process.env.PI_VOICE_SHORTCUT ?? "ctrl+space";
 const model = process.env.PI_VOICE_MODEL ?? "mlx-community/whisper-small-mlx";
@@ -44,7 +45,10 @@ function setSharedStatus(status: Partial<VoiceStatus>) {
 type Ctx = {
   ui: {
     setEditorText?(text: string): void;
-    notify(message: string, level?: "info" | "warn" | "error"): void;
+    notify(message: string, level?: "info" | "warn" | "warning" | "error"): void;
+    onTerminalInput?(
+      handler: (data: string) => { consume?: boolean; data?: string } | undefined,
+    ): () => void;
   };
 };
 
@@ -173,6 +177,13 @@ export default function (pi: ExtensionAPI) {
   let workDir: string | undefined;
   let wav: string | undefined;
   let warmupPromise: Promise<void> | undefined;
+  let unsubscribeCancelKey: (() => void) | undefined;
+  let cancelKeyEnabledAt = 0;
+
+  function clearCancelKey() {
+    unsubscribeCancelKey?.();
+    unsubscribeCancelKey = undefined;
+  }
 
   async function warmup(ctx?: Ctx) {
     if (!warmupEnabled || warmupPromise) return warmupPromise;
@@ -222,6 +233,7 @@ export default function (pi: ExtensionAPI) {
     if (!child || !workDir || !wav) return;
 
     render(ctx, "voice: stopping", "Stopping recorder...");
+    clearCancelKey();
     recorder = undefined;
     child.kill("SIGINT");
     await new Promise((resolve) => child.once("close", resolve));
@@ -272,6 +284,23 @@ export default function (pi: ExtensionAPI) {
     }
   }
 
+  async function cancel(ctx: Ctx) {
+    const child = recorder;
+    if (!child) return;
+
+    render(ctx, "voice: canceled", "Recording canceled.");
+    clearCancelKey();
+    recorder = undefined;
+    child.kill("SIGINT");
+    await new Promise((resolve) => child.once("close", resolve));
+
+    if (workDir) rmSync(workDir, { recursive: true, force: true });
+    workDir = undefined;
+    wav = undefined;
+    render(ctx, "voice: idle", "Recording canceled.");
+    ctx.ui.notify("Voice recording canceled.", "info");
+  }
+
   async function start(ctx: Ctx) {
     if (!which("ffmpeg")) {
       render(ctx, "voice: error", "Install ffmpeg: brew install ffmpeg");
@@ -287,7 +316,7 @@ export default function (pi: ExtensionAPI) {
     render(
       ctx,
       "🎙️ recording",
-      `Recording from avfoundation ${audioDevice}. Press ${shortcut} again to stop.`,
+      `Recording from avfoundation ${audioDevice}. Press ${shortcut} again to stop, escape to cancel.`,
     );
 
     recorder = spawn("ffmpeg", [
@@ -310,8 +339,27 @@ export default function (pi: ExtensionAPI) {
       render(ctx, "🎙️ recording", String(data).trim().slice(0, 160)),
     );
     recorder.on("error", (error) => {
+      clearCancelKey();
       render(ctx, "voice: error", error.message);
       ctx.ui.notify(error.message, "error");
+    });
+
+    cancelKeyEnabledAt = Date.now() + 500;
+    unsubscribeCancelKey = ctx.ui.onTerminalInput?.((data) => {
+      // Kitty keyboard protocol can emit key-release events. In particular,
+      // releasing ctrl after the voice shortcut must not cancel recording.
+      if (isKeyRelease(data)) return { consume: true };
+
+      const isEscape = matchesKey(data, "escape");
+      if (!isEscape) return undefined;
+
+      // Ignore the startup window so any stray sequence from the shortcut that
+      // opened recording cannot immediately cancel it. Consume it so the app's
+      // built-in escape handler does not fire either.
+      if (Date.now() < cancelKeyEnabledAt) return { consume: true };
+
+      if (recorder) void cancel(ctx);
+      return { consume: true };
     });
   }
 
@@ -360,6 +408,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("session_shutdown", async () => {
+    clearCancelKey();
     recorder?.kill("SIGINT");
     setSharedStatus({
       status: "voice: idle",
