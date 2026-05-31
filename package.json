@@ -1,16 +1,30 @@
 {
+  "$schema": "https://www.schemastore.org/package.json",
   "name": "my-pi-setup",
-  "version": "0.1.0",
   "private": true,
-  "keywords": ["pi-package"],
+  "scripts": {
+    "setup": "pi install .",
+    "format": "prettier -w ."
+  },
   "pi": {
-    "extensions": ["./extensions"],
-    "skills": ["./skills"],
-    "prompts": ["./prompts"],
-    "themes": ["./themes"]
+    "extensions": [
+      "./extensions"
+    ],
+    "skills": [
+      "./skills"
+    ],
+    "prompts": [
+      "./prompts"
+    ],
+    "themes": [
+      "./themes"
+    ]
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
     "typebox": "*"
+  },
+  "devDependencies": {
+    "prettier": "^3.8.3"
   }
 }
