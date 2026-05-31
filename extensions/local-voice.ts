@@ -6,6 +6,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const shortcut = process.env.PI_VOICE_SHORTCUT ?? "ctrl+space";
 const model = process.env.PI_VOICE_MODEL ?? "mlx-community/whisper-tiny-mlx";
+const language = process.env.PI_VOICE_LANGUAGE ?? "en";
 const whisperCppModel = process.env.PI_VOICE_WHISPER_CPP_MODEL;
 const audioDevice = process.env.PI_VOICE_AUDIO_DEVICE ?? ":0";
 const warmupEnabled = process.env.PI_VOICE_WARMUP !== "0";
@@ -121,6 +122,8 @@ async function transcribe(engine: Engine, wav: string, dir: string) {
       dir,
       "--output-format",
       "txt",
+      "--language",
+      language,
     ]);
 
     const txtPath = join(dir, "speech.txt");
@@ -138,6 +141,8 @@ async function transcribe(engine: Engine, wav: string, dir: string) {
     "-of",
     out,
     "-nt",
+    "-l",
+    language,
   ]);
   return readFileSync(`${out}.txt`, "utf8").trim();
 }
@@ -338,7 +343,7 @@ export default function (pi: ExtensionAPI) {
       render(
         ctx,
         recorder ? "🎙️ recording" : "voice: idle",
-        `ffmpeg: ${which("ffmpeg") ?? "missing"} | engine: ${engine ? engine.kind : "missing"} | model: ${model} | warmup: ${warmupEnabled ? "on" : "off"}`,
+        `ffmpeg: ${which("ffmpeg") ?? "missing"} | engine: ${engine ? engine.kind : "missing"} | model: ${model} | language: ${language} | warmup: ${warmupEnabled ? "on" : "off"}`,
       );
     },
   });
