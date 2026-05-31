@@ -17,6 +17,8 @@ Custom written extensions that I've found useful, some used more than others.
 Custom status bar overriding the one provided by Pi itself. Shows some useful information like
 the model in use, effort level, in/out tokens, session usage etc.
 
+<img width="987" height="133" alt="image" src="https://github.com/user-attachments/assets/8013fb90-cbfb-4e4c-ba29-b2337a9868e6" />
+
 [Source](extensions/custom-status-bar.ts)
 
 ### Model effort command
