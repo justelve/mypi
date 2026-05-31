@@ -20,11 +20,14 @@ function formatTokens(n: number): string {
   return `${(n / 1_000_000).toFixed(1)}m`;
 }
 
-type CodexUsage = {
-  primaryPercent: number;
-  secondaryPercent?: number;
-  resetAfterSeconds?: number;
-};
+type CodexUsage =
+  | {
+      status: "ok";
+      primaryPercent: number;
+      secondaryPercent?: number;
+      resetAfterSeconds?: number;
+    }
+  | { status: "auth-expired" | "unavailable"; message: string };
 
 type GitDiffStats = {
   additions: number;
@@ -66,6 +69,21 @@ async function fetchGitDiffStats(
   return { additions, deletions };
 }
 
+function isJwtExpired(token: string): boolean {
+  try {
+    const [, payload] = token.split(".");
+    if (!payload) return false;
+    const parsed = JSON.parse(
+      Buffer.from(payload, "base64url").toString("utf8"),
+    ) as {
+      exp?: number;
+    };
+    return typeof parsed.exp === "number" && parsed.exp * 1000 <= Date.now();
+  } catch {
+    return false;
+  }
+}
+
 async function fetchCodexUsage(): Promise<CodexUsage | undefined> {
   const home = process.env.HOME;
   if (!home) return undefined;
@@ -76,6 +94,12 @@ async function fetchCodexUsage(): Promise<CodexUsage | undefined> {
   const token = auth.tokens?.access_token;
   const accountId = auth.tokens?.account_id;
   if (!token) return undefined;
+  if (isJwtExpired(token)) {
+    return {
+      status: "auth-expired",
+      message: "Codex auth expired; run codex login",
+    };
+  }
 
   const response = await fetch("https://chatgpt.com/backend-api/wham/usage", {
     headers: {
@@ -83,14 +107,25 @@ async function fetchCodexUsage(): Promise<CodexUsage | undefined> {
       ...(accountId ? { "ChatGPT-Account-Id": accountId } : {}),
     },
   });
-  if (!response.ok) return undefined;
+  if (!response.ok) {
+    return {
+      status: response.status === 401 ? "auth-expired" : "unavailable",
+      message:
+        response.status === 401
+          ? "Codex auth expired; run codex login"
+          : `Codex usage unavailable (${response.status})`,
+    };
+  }
 
   const data = await response.json();
   const primary = data.rate_limit?.primary_window;
   const secondary = data.rate_limit?.secondary_window;
-  if (typeof primary?.used_percent !== "number") return undefined;
+  if (typeof primary?.used_percent !== "number") {
+    return { status: "unavailable", message: "Codex usage unavailable" };
+  }
 
   return {
+    status: "ok",
     primaryPercent: primary.used_percent,
     secondaryPercent:
       typeof secondary?.used_percent === "number"
@@ -247,24 +282,29 @@ export default function (pi: ExtensionAPI) {
               `↑${formatTokens(inputTokens)} ↓${formatTokens(outputTokens)} $${cost.toFixed(3)}`,
             ) +
             (codexUsage
-              ? theme.fg("dim", "  Codex ") +
-                theme.fg(
-                  usageColor(codexUsage.primaryPercent),
-                  `${codexUsage.primaryPercent}%`,
-                ) +
-                (codexUsage.secondaryPercent === undefined
-                  ? ""
-                  : theme.fg("dim", "/") +
-                    theme.fg(
-                      usageColor(codexUsage.secondaryPercent),
-                      `${codexUsage.secondaryPercent}%`,
-                    )) +
-                (codexUsage.resetAfterSeconds === undefined
-                  ? ""
-                  : theme.fg(
-                      "dim",
-                      ` reset ${formatDuration(codexUsage.resetAfterSeconds)}`,
-                    ))
+              ? codexUsage.status === "ok"
+                ? theme.fg("dim", "  Codex ") +
+                  theme.fg(
+                    usageColor(codexUsage.primaryPercent),
+                    `${codexUsage.primaryPercent}%`,
+                  ) +
+                  (codexUsage.secondaryPercent === undefined
+                    ? ""
+                    : theme.fg("dim", "/") +
+                      theme.fg(
+                        usageColor(codexUsage.secondaryPercent),
+                        `${codexUsage.secondaryPercent}%`,
+                      )) +
+                  (codexUsage.resetAfterSeconds === undefined
+                    ? ""
+                    : theme.fg(
+                        "dim",
+                        ` reset ${formatDuration(codexUsage.resetAfterSeconds)}`,
+                      ))
+                : theme.fg(
+                    codexUsage.status === "auth-expired" ? "warning" : "dim",
+                    `  ${codexUsage.message}`,
+                  )
               : "");
           const line2Pad = " ".repeat(
             Math.max(
