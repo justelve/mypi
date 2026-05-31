@@ -3,7 +3,7 @@
   "name": "my-pi-setup",
   "private": true,
   "scripts": {
-    "setup": "pi install .",
+    "setup": "./scripts/setup.sh",
     "format": "prettier -w ."
   },
   "pi": {

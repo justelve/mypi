@@ -2,11 +2,28 @@
 
 Extensions and skills I use in [Pi](https://pi.dev/).
 
-If you want to install these yourself you can clone the repo and run:
+## Setup
+
+Clone the repo, then run:
+
+```sh
+./scripts/setup.sh
+```
+
+The setup script installs project npm dependencies, installs the third-party Pi packages listed below,
+and then installs this repo into Pi.
+
+If you prefer to install only this repo manually:
 
 ```sh
 pi install /path/to/repo
 ```
+
+## Third-party Pi packages
+
+These are the currently installed non-custom Pi packages from npm or GitHub:
+
+- [`npm:pi-hashline-edit`](https://github.com/RimuruW/pi-hashline-edit) (`pi-hashline-edit` npm package) — hash-line anchored file editing tool used by Pi coding-agent workflows.
 
 ## Extensions
 
