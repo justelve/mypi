@@ -1,8 +1,12 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 
 function shortPath(path: string): string {
   const home = process.env.HOME;
@@ -21,6 +25,32 @@ type CodexUsage = {
   secondaryPercent?: number;
   resetAfterSeconds?: number;
 };
+
+type GitDiffStats = {
+  additions: number;
+  deletions: number;
+};
+
+async function fetchGitDiffStats(
+  cwd: string,
+): Promise<GitDiffStats | undefined> {
+  const { stdout } = await execFileAsync(
+    "git",
+    ["diff", "--numstat", "HEAD", "--"],
+    { cwd },
+  );
+
+  let additions = 0;
+  let deletions = 0;
+  for (const line of stdout.split("\n")) {
+    if (!line.trim()) continue;
+    const [added, deleted] = line.split("\t");
+    if (added !== "-") additions += Number(added) || 0;
+    if (deleted !== "-") deletions += Number(deleted) || 0;
+  }
+
+  return { additions, deletions };
+}
 
 async function fetchCodexUsage(): Promise<CodexUsage | undefined> {
   const home = process.env.HOME;
@@ -75,15 +105,30 @@ export default function (pi: ExtensionAPI) {
   let thinkingLevel = "off";
   let requestFooterRender: (() => void) | undefined;
   let codexUsage: CodexUsage | undefined;
+  let gitDiffStats: GitDiffStats | undefined;
   let usageTimer: ReturnType<typeof setInterval> | undefined;
+
+  const updateGitDiffStats = async (cwd: string) => {
+    try {
+      gitDiffStats = await fetchGitDiffStats(cwd);
+    } catch {
+      gitDiffStats = undefined;
+    }
+    requestFooterRender?.();
+  };
 
   pi.on("thinking_level_select", async (event) => {
     thinkingLevel = event.level;
     requestFooterRender?.();
   });
 
+  pi.on("tool_execution_end", async (_event, ctx) => {
+    void updateGitDiffStats(ctx.cwd);
+  });
+
   pi.on("session_start", async (_event, ctx) => {
     thinkingLevel = pi.getThinkingLevel();
+    void updateGitDiffStats(ctx.cwd);
 
     const updateCodexUsage = async () => {
       try {
@@ -143,9 +188,17 @@ export default function (pi: ExtensionAPI) {
           const line1Left =
             theme.fg("accent", `${model} `) +
             theme.fg("dim", `${contextText} (${thinking})`);
-          const line1Right = branch
-            ? theme.fg("success", branch)
-            : theme.fg("dim", "no git branch");
+          const gitDiffText = gitDiffStats
+            ? theme.fg("success", `+${formatTokens(gitDiffStats.additions)} `) +
+              theme.fg("error", `-${formatTokens(gitDiffStats.deletions)} `)
+            : "";
+          const line1Right =
+            gitDiffText === "" && !branch
+              ? theme.fg("dim", "no git branch")
+              : gitDiffText +
+                (branch
+                  ? theme.bold(theme.fg("text", branch))
+                  : theme.fg("dim", "no git branch"));
           const line1Pad = " ".repeat(
             Math.max(
               1,
