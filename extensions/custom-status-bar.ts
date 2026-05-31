@@ -31,6 +31,20 @@ type GitDiffStats = {
   deletions: number;
 };
 
+type VoiceStatus = {
+  status: string;
+  detail: string;
+  updatedAt: number;
+  recording: boolean;
+  transcribing: boolean;
+};
+
+function getVoiceStatus(): VoiceStatus | undefined {
+  return (globalThis as Record<string, unknown>).__piLocalVoiceStatus as
+    | VoiceStatus
+    | undefined;
+}
+
 async function fetchGitDiffStats(
   cwd: string,
 ): Promise<GitDiffStats | undefined> {
@@ -144,6 +158,8 @@ export default function (pi: ExtensionAPI) {
 
     ctx.ui.setFooter((tui, theme, footerData) => {
       requestFooterRender = () => tui.requestRender();
+      (globalThis as Record<string, unknown>).__piRequestFooterRender =
+        requestFooterRender;
       const unsubBranch = footerData.onBranchChange(() => tui.requestRender());
 
       return {
@@ -152,6 +168,8 @@ export default function (pi: ExtensionAPI) {
           if (usageTimer) clearInterval(usageTimer);
           usageTimer = undefined;
           requestFooterRender = undefined;
+          delete (globalThis as Record<string, unknown>)
+            .__piRequestFooterRender;
         },
         invalidate() {},
 
@@ -192,13 +210,29 @@ export default function (pi: ExtensionAPI) {
             ? theme.fg("success", `+${formatTokens(gitDiffStats.additions)} `) +
               theme.fg("error", `-${formatTokens(gitDiffStats.deletions)} `)
             : "";
+          const voice = getVoiceStatus();
+          if (voice && (voice.recording || voice.transcribing)) {
+            setTimeout(() => tui.requestRender(), 250).unref?.();
+          }
+          const voiceText =
+            voice && Date.now() - voice.updatedAt < 120_000
+              ? theme.fg(
+                  voice.recording
+                    ? "error"
+                    : voice.transcribing
+                      ? "warning"
+                      : "success",
+                  `${voice.recording ? "🎙️ " : ""}${voice.status}`,
+                ) + theme.fg("dim", "  ")
+              : "";
           const line1Right =
-            gitDiffText === "" && !branch
+            voiceText +
+            (gitDiffText === "" && !branch
               ? theme.fg("dim", "no git branch")
               : gitDiffText +
                 (branch
                   ? theme.bold(theme.fg("text", branch))
-                  : theme.fg("dim", "no git branch"));
+                  : theme.fg("dim", "no git branch")));
           const line1Pad = " ".repeat(
             Math.max(
               1,
