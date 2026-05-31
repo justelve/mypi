@@ -5,7 +5,7 @@ import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const shortcut = process.env.PI_VOICE_SHORTCUT ?? "ctrl+space";
-const model = process.env.PI_VOICE_MODEL ?? "mlx-community/whisper-tiny-mlx";
+const model = process.env.PI_VOICE_MODEL ?? "mlx-community/whisper-small-mlx";
 const language = process.env.PI_VOICE_LANGUAGE ?? "en";
 const whisperCppModel = process.env.PI_VOICE_WHISPER_CPP_MODEL;
 const audioDevice = process.env.PI_VOICE_AUDIO_DEVICE ?? ":0";
