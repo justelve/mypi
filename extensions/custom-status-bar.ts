@@ -204,8 +204,8 @@ export default function (pi: ExtensionAPI) {
             ? ` ctx ${formatTokens(contextUsage.tokens)}${contextUsage.percent === null ? "" : `/${contextUsage.percent.toFixed(0)}%`}`
             : "";
           const line1Left =
-            theme.fg("accent", `${model} `) +
-            theme.fg("dim", `${contextText} (${thinking})`);
+            theme.fg("accent", `${model} - ${thinking}`) +
+            theme.fg("dim", contextText);
           const gitDiffText = gitDiffStats
             ? theme.fg("success", `+${formatTokens(gitDiffStats.additions)} `) +
               theme.fg("error", `-${formatTokens(gitDiffStats.deletions)} `)
