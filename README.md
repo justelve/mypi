@@ -29,6 +29,19 @@ These are the currently installed non-custom Pi packages from npm or GitHub:
 
 Custom written extensions that I've found useful, some used more than others.
 
+### Web search and deep research
+
+Adds `web_search`, `web_fetch`, and `deep_research` tools plus `/web-research-status`. Uses Brave, Tavily, Serper, or Kagi when API keys are configured, with a DuckDuckGo HTML fallback.
+
+Configuration environment variables:
+
+- `PI_WEB_SEARCH_PROVIDER=brave|tavily|serper|kagi|duckduckgo` to force a provider
+- `BRAVE_SEARCH_API_KEY`, `TAVILY_API_KEY`, `SERPER_API_KEY`, or `KAGI_API_KEY` for API providers
+- `PI_WEB_MAX_FETCH_BYTES` to change the per-page download cap
+- `PI_WEB_USER_AGENT` to customize the fetch/search user agent
+
+[Source](extensions/web-research.ts)
+
 ### Custom status bar
 
 Custom status bar overriding the one provided by Pi itself. Shows some useful information like
@@ -73,3 +86,11 @@ Configuration environment variables:
 - `PI_VOICE_WARMUP=0` to disable session-start warmup
 
 [Source](extensions/local-voice.ts)
+
+## Custom skills
+
+### Web research
+
+Skill instructions for source-backed web research using the web search/deep research tools.
+
+[Source](skills/web-research/SKILL.md)
